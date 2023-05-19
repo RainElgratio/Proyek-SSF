@@ -109,4 +109,91 @@ l6: DEC   R22
     BRNE  l4
     RET
 
+.equ MAX_CARS, 5    ; maximum number of cars allowed
+.equ MIN_CARS, 0    ; minimum number of cars allowed
+
+.org 0x0000           ; start of program memory
+
+; Interrupt service routine for entrance interrupt
+    cbi  DDRB, 1     ; configure PB1 as input for entrance sensor
+    sbis PINB, 1     ; check if entrance sensor is triggered
+    rjmp exit_isr    ; if not, go to exit interrupt
+    ; if entrance sensor is triggered:
+    cpi  r16, MAX_CARS ; compare number of cars with maximum
+    breq nospace      ; if equal, go to nospace label
+    inc  r16          ; increment number of cars
+    ; turn on orange LED, wait, then turn on green LED
+    sbi  PORTB, 2     ; set PB2 high for orange LED
+    call delay
+    sbi  PORTB, 3     ; set PB3 high for green LED
+    ; update number of cars on port C
+    out  PORTC, r16
+    ; call PWM subroutine to increase sound
+    rcall PWM
+    reti              ; return from interrupt
+
+; Interrupt service routine for exit interrupt
+    cbi  DDRB, 0     ; configure PB0 as input for exit sensor
+    sbis PINB, 0     ; check if exit sensor is triggered
+    rjmp entrance_isr ; if not, go to entrance interrupt
+    ; if exit sensor is triggered:
+    dec  r16          ; decrement number of cars
+    ; update number of cars on port C
+    out  PORTC, r16
+    ; call PWM subroutine to decrease sound
+    rcall PWM
+    ; if no car is left, go to Nocar label
+    cpi  r16, MIN_CARS ; compare number of cars with minimum
+    breq Nocar        ; if equal, go to Nocar label
+    sbi  PORTB, 2     ; set PB2 high for orange LED
+    cbi  PORTB, 3     ; set PB3 low for green LED
+    reti              ; return from interrupt
+
+; Subroutine for PWM
+PWM:
+    ; reset Timer0 registers to enable PWM output on PB1 and PB2
+    ldi  r18, 0x63
+    out  TCCR0A, r18
+    ldi  r18, 0x01
+    out  TCCR0B, r18
+    ret
+
+; Subroutine for delay of 1 second
+delay:
+    ldi  r18, 0x00
+    ldi  r19, 0x80
+loop:
+    dec  r19
+    brne loop
+    dec  r18
+    brne loop
+    ret
+
+; Initialize main program
+main:
+    ; Initialize Port B (PB0 as input for exit sensor, PB1 as input for entrance sensor, PB2 as output for orange LED, PB3 as output for green LED)
+    ldi  r18, 0x03
+    out  DDRB, r18
+    ; Initialize Port C (output for number of cars)
+    ldi  r18, 0xFF
+    out  DDRC, r18
+    ; Initialize Port D (output for PWM)
+    ldi  r18, 0xFF
+    out  DDRD, r18
+    ; Initialize interrupts
+    sei
+    ; Infinite loop
+loop:
+    rjmp loop
+
+; Label for when there is no space
+nospace:
+    sbi  PORTB, 0     ; set PB0 high for red LED
+    cbi  PORTB, 2     ; set PB2 low for orange LED
+    reti              ; return from interrupt
+
+; Label for when there is no car
+Nocar:
+    reti              ; return from interrupt
+
 
