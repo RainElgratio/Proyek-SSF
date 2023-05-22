@@ -1,199 +1,141 @@
-;--------------------------
-; Assembly Code - Master Tx
-;--------------------------
+;------------------------------------------
+; Assembly Code
+;------------------------------------------
 #define __SFR_OFFSET 0x00
 #include "avr/io.h"
 ;------------------------
-.global I2C_master
-.global lcd_write_string
+.global start
 
-;==============================================================
-I2C_master:
-    CBI   DDRC, 3         ;pin PC3 is i/p
-    ;----------------------------------------------------------
-    RCALL I2C_init        ;initialize TWI module
-    ;----------------------------------------------------------
-l1: SBIS  PINC, 3
-    RJMP  l1              ;wait for "transmit" button press
-    ;----------------------------------------------------------
-    RCALL I2C_start       ;transmit START condition
-    LDI   R27, 0b10010000 ;SLA(1001000) + W(0)
-    RCALL I2C_write       ;write slave address SLA+W
-    LDI   R27, 0b11110101 ;data byte to be transmitted
-    RCALL I2C_write       ;write data byte
-    RCALL I2C_stop        ;transmit STOP condition
-    ;----------------------------------------------------------
-    RJMP  l1              ;go back for another transmit
-;==============================================================
-I2C_init:
-    LDI   R21, 0
-    STS   TWSR, R21       ;prescaler = 0
-    LDI   R21, 12         ;division factor = 12
-    STS   TWBR, R21       ;SCK freq = 400kHz
-    LDI   R21, (1<<TWEN)
-    STS   TWCR, R21       ;enable TWI
-    RET
-;==============================================================
-I2C_start:
-    LDI   R21, (1<<TWINT)|(1<<TWSTA)|(1<<TWEN)
-    STS   TWCR, R21       ;transmit START condition
-    ;----------------------------------------------------------
-wt1:LDS   R21, TWCR
-    SBRS  R21, TWINT      ;TWI interrupt = 1?
-    RJMP  wt1             ;no, wait for end of transmission
-    ;----------------------------------------------------------
-    RET
-;==============================================================
-I2C_write:
-    STS   TWDR, R27       ;copy SLA+W into data register
-    LDI   R21, (1<<TWINT)|(1<<TWEN)
-    STS   TWCR, R21       ;transmit SLA+W
-    ;----------------------------------------------------------
-wt2:LDS   R21, TWCR
-    SBRS  R21, TWINT
-    RJMP  wt2             ;wait for end of transmission
-    ;----------------------------------------------------------
-    RET
-;==============================================================
-I2C_stop:
-    LDI   R21, (1<<TWINT)|(1<<TWSTO)|(1<<TWEN)
-    STS   TWCR, R21       ;transmit STOP condition
-    RET
-;==============================================================
-lcd_write_string:
-    ; Your code to write a string to the LCD here
-    ; Load the address of the string into Z register
+;=============================================================================
+start:
+    SBI   DDRB, 5             ;set PB5 (pin D10 as o/p - blue LED 1)
+    SBI   DDRB, 4             ;set PB4 (pin D12 as o/p - red  LED 1)
+    SBI   DDRB, 3             ;set PB3 (pin D11 as o/p - blue LED 2)
+    SBI   DDRB, 2             ;set PB2 (pin D10 as o/p - red  LED 2)
+    SBI   DDRB, 1             ;set PB1 (pin D10 as o/p - blue LED 3)
+    SBI   DDRB, 0             ;set PB0 (pin D10 as o/p - red  LED 3)
 
-    ldi r30, lo8(msg)          ; Load the low byte of string address
-    ldi r31, hi8(msg)          ; Load the high byte of string address
-agn:LPM   R18, Z+                   ;load char of string onto R18
-    CPI   R18, 0                    ;check if R18=0 (end of string)
-    BREQ  ext                       ;if yes, exit
+    CBI   DDRD, 2             ;clear PD2 (pin D02 as i/p - LDR sensor 1)
+    CBI   DDRD, 3             ;clear PD3 (pin D03 as i/p - LDR sensor 2)
+    CBI   DDRD, 4             ;clear PD4 (pin D04 as i/p - LDR sensor 3)
 
-    ;--------------------------------------------------------------------
+    RJMP init_ADC
 
-    ; Start I2C communication
-    ldi r16, 0x27   ; Load LCD I2C address into r16
-    rcall I2C_start             ; Start I2C communication
-    rcall I2C_write        ; Send control byte with LCD address (write mode)
+;-----------------------------------------------------------------------------
+LDRinputONE:
+    SBRC  R18, 2             ;skip next statement if there's no input from LDRone
+    RJMP  NOinputONE          ;jump to label NOinputONE 
+    SBI   PORTB, 5            ;turn ON blue LED 1
+    CBI   PORTB, 4            ;turn OFF red LED 1
+    RJMP  LDRinputTWO         ;jump to label LDRinputTWO
 
-write_loop:
-    ld r16, Z+                 ; Load character from Z register
-    tst r16                    ; Check if end of string (null terminator)
-    breq write_end             ; If end of string, exit the loop
+LDRinputTWO:
+    SBRC  R20, 2             ;skip next statement if there's no input from LDRtwo
+    RJMP  NOinputTWO          ;jump to label NOinputTWO
+    SBI   PORTB, 3            ;turn ON blue LED 2
+    CBI   PORTB, 2            ;turn OFF red LED 2
+    RJMP  LDRinputTHREE       ;jump to label LDRinputTHREE
 
-    ; Write the character to the LCD
-    rcall I2C_write        ; Send the character to the LCD
-    rjmp write_loop            ; Continue loop
+LDRinputTHREE:
+    SBRC  R22, 2             ;skip next statement if there's no input from LDRthree
+    RJMP  NOinputTHREE        ;jump to label NOinputTHREE
+    SBI   PORTB, 1            ;turn ON blue LED 3
+    CBI   PORTB, 0            ;turn OFF red LED 3
+    RJMP  LDRinputONE         ;jump to label LDRinputONE
 
-write_end:
-    ; Stop I2C communication
-    rcall I2C_stop              ; Stop I2C communication
+;-----------------------------------------------------------------------------
+NOinputONE:
+    CBI   PORTB, 5            ;turn OFF blue LED 1
+    SBI   PORTB, 4            ;turn ON  red  LED 1
+    RJMP  LDRinputTWO         ;jump to label LDRinputTWO
 
-    ret
+NOinputTWO:
+    CBI   PORTB, 3            ;turn OFF blue LED 2
+    SBI   PORTB, 2            ;turn ON  red  LED 2
+    RJMP  LDRinputTHREE       ;jump to label LDRinputTHREE
 
-ext:RCALL delay_sec
-    RET
-
-msg: .ascii "Hello, Arduino!"   ; String to be displayed on the LCD
-
-delay_sec:                          ;3s delay
-    LDI   R20, 255
-l4: LDI   R21, 255
-l5: LDI   R22, 255
-l6: DEC   R22
-    BRNE  l6
-    DEC   R21
-    BRNE  l5
-    DEC   R20
-    BRNE  l4
-    RET
-
-.equ MAX_CARS, 5    ; maximum number of cars allowed
-.equ MIN_CARS, 0    ; minimum number of cars allowed
-
-.org 0x0000           ; start of program memory
-
-; Interrupt service routine for entrance interrupt
-    cbi  DDRB, 1     ; configure PB1 as input for entrance sensor
-    sbis PINB, 1     ; check if entrance sensor is triggered
-    rjmp exit_isr    ; if not, go to exit interrupt
-    ; if entrance sensor is triggered:
-    cpi  r16, MAX_CARS ; compare number of cars with maximum
-    breq nospace      ; if equal, go to nospace label
-    inc  r16          ; increment number of cars
-    ; turn on orange LED, wait, then turn on green LED
-    sbi  PORTB, 2     ; set PB2 high for orange LED
-    call delay
-    sbi  PORTB, 3     ; set PB3 high for green LED
-    ; update number of cars on port C
-    out  PORTC, r16
-    ; call PWM subroutine to increase sound
-    rcall PWM
-    reti              ; return from interrupt
-
-; Interrupt service routine for exit interrupt
-    cbi  DDRB, 0     ; configure PB0 as input for exit sensor
-    sbis PINB, 0     ; check if exit sensor is triggered
-    rjmp entrance_isr ; if not, go to entrance interrupt
-    ; if exit sensor is triggered:
-    dec  r16          ; decrement number of cars
-    ; update number of cars on port C
-    out  PORTC, r16
-    ; call PWM subroutine to decrease sound
-    rcall PWM
-    ; if no car is left, go to Nocar label
-    cpi  r16, MIN_CARS ; compare number of cars with minimum
-    breq Nocar        ; if equal, go to Nocar label
-    sbi  PORTB, 2     ; set PB2 high for orange LED
-    cbi  PORTB, 3     ; set PB3 low for green LED
-    reti              ; return from interrupt
-
-; Subroutine for PWM
-PWM:
-    ; reset Timer0 registers to enable PWM output on PB1 and PB2
-    ldi  r18, 0x63
-    out  TCCR0A, r18
-    ldi  r18, 0x01
-    out  TCCR0B, r18
-    ret
-
-; Subroutine for delay of 1 second
-delay:
-    ldi  r18, 0x00
-    ldi  r19, 0x80
-loop:
-    dec  r19
-    brne loop
-    dec  r18
-    brne loop
-    ret
-
-; Initialize main program
-main:
-    ; Initialize Port B (PB0 as input for exit sensor, PB1 as input for entrance sensor, PB2 as output for orange LED, PB3 as output for green LED)
-    ldi  r18, 0x03
-    out  DDRB, r18
-    ; Initialize Port C (output for number of cars)
-    ldi  r18, 0xFF
-    out  DDRC, r18
-    ; Initialize Port D (output for PWM)
-    ldi  r18, 0xFF
-    out  DDRD, r18
-    ; Initialize interrupts
-    sei
-    ; Infinite loop
-loop:
-    rjmp loop
-
-; Label for when there is no space
-nospace:
-    sbi  PORTB, 0     ; set PB0 high for red LED
-    cbi  PORTB, 2     ; set PB2 low for orange LED
-    reti              ; return from interrupt
-
-; Label for when there is no car
-Nocar:
-    reti              ; return from interrupt
+NOinputTHREE:
+    CBI   PORTB, 1            ;turn OFF blue LED 3
+    SBI   PORTB, 0            ;turn ON  red  LED 3
+    RJMP  read_ADC0         ;jump to label read_ADC0
 
 
+;-----------------------------------------------------------------------------
+
+init_ADC:
+    LDI   R23, 0xFF
+
+    SBI   DDRC, 0     ; set pin PC0 as i/p for ADC0 for LDR 1
+    SBI   DDRC, 1     ; set pin PC1 as i/p for ADC1 for LDR 2
+    SBI   DDRC, 2     ; set pin PC2 as i/p for ADC2 for LDR 3
+    ;--------------------------------------------------------------
+    LDI   R23, 0x87   ; enable ADC, ADC prescaler CLK/128
+    STS   ADCSRA, R23
+;------------------------------------------------------------------
+
+
+read_ADC0:
+    LDI   R23, 0xC0   ; internal 2.56V, right-justified data, ADC0
+    STS   ADMUX, R23
+    LDI   R23, 0x87   ; enable ADC, ADC prescaler CLK/128
+    STS   ADCSRA, R23
+
+    LDI   R23, 0xC7   ; set ADSC in ADCSRA to start conversion for ADC0
+    STS   ADCSRA, R23
+    
+    ; Wait for conversion of ADC0
+    wait_ADC0:
+        LDS   R24, ADCSRA ; check ADIF flag in ADCSRA for ADC0
+        SBRS  R24, 7      ; skip jump when conversion is done (flag set)
+        RJMP  wait_ADC0    ; loop until ADIF flag is set
+    
+    ; Read and store the ADC0 result
+    LDS   R17, ADCL   ; get low-byte result from ADCL for ADC0
+    LDS   R18, ADCH   ; get high-byte result from ADCH for ADC0
+
+    RJMP read_ADC1
+    
+read_ADC1:
+    LDI   R23, 0xC0   ; internal 2.56V, right-justified data, ADC1
+    STS   ADMUX, R23
+    LDI   R23, 0x87   ; enable ADC, ADC prescaler CLK/128
+    STS   ADCSRA, R23
+    
+    LDI   R23, 0xC7   ; start conversion for ADC1
+    STS   ADCSRA, R23
+    
+    ; Wait for conversion of ADC1
+    wait_ADC1:
+        LDS   R24, ADCSRA ; check ADIF flag in ADCSRA for ADC1
+        SBRS  R24, 7      ; skip jump when conversion is done (flag set)
+        RJMP  wait_ADC1    ; loop until ADIF flag is set
+    
+    ; Read and store the ADC1 result
+    LDS   R19, ADCL   ; get low-byte result from ADCL for ADC1
+    LDS   R20, ADCH   ; get high-byte result from ADCH for ADC1
+
+    RJMP read_ADC2
+    
+read_ADC2:
+    LDI   R23, 0xC2   ; internal 2.56V, right-justified data, ADC2
+    STS   ADMUX, R23
+    LDI   R23, 0x87   ; enable ADC, ADC prescaler CLK/128
+    STS   ADCSRA, R23
+    
+    LDI   R23, 0xC7   ; start conversion for ADC2
+    STS   ADCSRA, R23
+    
+    ; Wait for conversion of ADC2
+    wait_ADC2:
+        LDS   R24, ADCSRA ; check ADIF flag in ADCSRA for ADC2
+        SBRS  R24, 7      ; skip jump when conversion is done (flag set)
+        RJMP  wait_ADC2    ; loop until ADIF flag is set
+    
+    ; Read and store the ADC2 result
+    LDS   R21, ADCL   ; get low-byte result from ADCL for ADC2
+    LDS   R22, ADCH   ; get high-byte result from ADCH for ADC2
+
+    RJMP LDRinputONE
+    
+
+;------------------------------------------------------------------
