@@ -4,6 +4,7 @@
 #define __SFR_OFFSET 0x00
 #include "avr/io.h"
 ;------------------------
+
 .global start
 
 ;=============================================================================
@@ -15,6 +16,9 @@ start:
     SBI   DDRB, 1             ;set PB1 (pin D10 as o/p - blue LED 3)
     SBI   DDRB, 0             ;set PB0 (pin D10 as o/p - red  LED 3)
 
+    LDI   R16, 0xFF
+    OUT   DDRD, R16
+
     ;CBI   DDRD, 2             ;clear PD2 (pin D02 as i/p - LDR sensor 1)
     ;CBI   DDRD, 3             ;clear PD3 (pin D03 as i/p - LDR sensor 2)
     ;CBI   DDRD, 4             ;clear PD4 (pin D04 as i/p - LDR sensor 3)
@@ -23,6 +27,8 @@ start:
 
 ;-----------------------------------------------------------------------------
 LDRinputONE:
+    LDI   R16, 0x01
+    LDI   R17, 0x00
     SBRC  R18, 1             ;skip next statement if there's no input from LDRone
     ;SBIC   PIND, 2
     RJMP  inputONE          ;jump to label inputONE 
@@ -48,24 +54,60 @@ LDRinputTHREE:
     CBI   PORTB, 0            ;turn OFF red LED 3
     ;LDI   R22, 0x00
     ;RJMP  LDRinputONE
+    RCALL sevseg
     RJMP  read_ADC0         ;jump to label LDRinputONE
 
 ;-----------------------------------------------------------------------------
 inputONE:
     CBI   PORTB, 5            ;turn OFF blue LED 1
     SBI   PORTB, 4            ;turn ON  red  LED 1
+    ADD   R17, R16 
     RJMP  LDRinputTWO         ;jump to label LDRinputTWO
 
 inputTWO:
     CBI   PORTB, 3            ;turn OFF blue LED 2
     SBI   PORTB, 2            ;turn ON  red  LED 2
+    ADD   R17, R16
     RJMP  LDRinputTHREE       ;jump to label LDRinputTHREE
 
 inputTHREE:
     CBI   PORTB, 1            ;turn OFF blue LED 3
     SBI   PORTB, 0            ;turn ON  red  LED 3
+    ADD   R17, R16
     ;RJMP  LDRinputONE
+    RCALL sevseg
     RJMP  read_ADC0         ;jump to label read_ADC0
+
+
+;-----------------------------------------------------------------------------
+sevseg:
+    CPI   R17, 0x00
+    BREQ  sevsegZERO
+    CPI   R17, 0x01
+    BREQ  sevsegONE
+    CPI   R17, 0x02
+    BREQ  sevsegTWO
+    CPI   R17, 0x03
+    BREQ  sevsegTHREE
+    RJMP  sevseg
+
+sevsegZERO:
+    LDI R16, 0x02
+    OUT PORTD, R16
+    RET
+
+sevsegONE:
+    LDI R16, 0x4F
+    OUT PORTD, R16
+    RET
+sevsegTWO:
+    LDI R16, 0x12
+    OUT PORTD, R16
+    RET
+sevsegTHREE:
+    LDI R16, 0x07
+    OUT PORTD, R16
+    RET
 
 
 ;-----------------------------------------------------------------------------
@@ -142,5 +184,8 @@ read_ADC2:
     RJMP LDRinputONE
     
 ;------------------------------------------------------------------
+
+
+
 
 
