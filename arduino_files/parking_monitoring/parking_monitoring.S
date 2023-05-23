@@ -16,8 +16,14 @@ start:
     SBI   DDRB, 1             ;set PB1 (pin D10 as o/p - blue LED 3)
     SBI   DDRB, 0             ;set PB0 (pin D10 as o/p - red  LED 3)
 
-    LDI   R16, 0xFF
-    OUT   DDRD, R16
+    SBI   DDRD, 7             ;set PD7 (pin D7 as o/p - a segment)
+    SBI   DDRD, 6             ;set PD6 (pin D7 as o/p - b segment)
+    SBI   DDRD, 5             ;set PD5 (pin D7 as o/p - c segment)
+    SBI   DDRD, 4             ;set PD4 (pin D7 as o/p - d segment)
+    SBI   DDRD, 3             ;set PD3 (pin D7 as o/p - e segment)
+    SBI   DDRD, 2             ;set PD2 (pin D7 as o/p - f segment)
+    SBI   DDRD, 0             ;set PD1 (pin D7 as o/p - g segment)
+    
 
     ;CBI   DDRD, 2             ;clear PD2 (pin D02 as i/p - LDR sensor 1)
     ;CBI   DDRD, 3             ;clear PD3 (pin D03 as i/p - LDR sensor 2)
@@ -80,7 +86,7 @@ inputTHREE:
 
 
 ;-----------------------------------------------------------------------------
-sevseg:
+sevseg:                     ;seven segment for the total of parked cars
     CPI   R17, 0x00
     BREQ  sevsegZERO
     CPI   R17, 0x01
@@ -92,21 +98,40 @@ sevseg:
     RJMP  sevseg
 
 sevsegZERO:
-    LDI R16, 0x02
-    OUT PORTD, R16
+    CBI   PORTD, 7
+    CBI   PORTD, 6
+    CBI   PORTD, 5
+    CBI   PORTD, 4
+    CBI   PORTD, 3
+    CBI   PORTD, 2
+    SBI   PORTD, 0
     RET
-
 sevsegONE:
-    LDI R16, 0x4F
-    OUT PORTD, R16
+    SBI   PORTD, 7
+    CBI   PORTD, 6
+    CBI   PORTD, 5
+    SBI   PORTD, 4
+    SBI   PORTD, 3
+    SBI   PORTD, 2
+    SBI   PORTD, 0
     RET
 sevsegTWO:
-    LDI R16, 0x12
-    OUT PORTD, R16
+    CBI   PORTD, 7
+    CBI   PORTD, 6
+    SBI   PORTD, 5
+    cBI   PORTD, 4
+    CBI   PORTD, 3
+    SBI   PORTD, 2
+    CBI   PORTD, 0
     RET
 sevsegTHREE:
-    LDI R16, 0x07
-    OUT PORTD, R16
+    CBI   PORTD, 7
+    CBI   PORTD, 6
+    CBI   PORTD, 5
+    CBI   PORTD, 4
+    SBI   PORTD, 3
+    SBI   PORTD, 2
+    CBI   PORTD, 0
     RET
 
 
